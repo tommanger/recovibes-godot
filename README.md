@@ -43,6 +43,7 @@ reco.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 | theme_mode | From your dashboard design, or LIGHT / DARK |
 | font | Your game's font (default: Godot's) |
 | card_height / min_card_width / spacing | Card sizing |
+| ui_scale | 0 = Auto: sized in real points for the device, whatever your base resolution. Or set a multiplier yourself. Don't scale the node itself - text would be stretched and blurry. |
 
 ## Tests
 

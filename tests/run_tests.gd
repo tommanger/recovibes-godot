@@ -106,6 +106,22 @@ func _run() -> void:
 	check(opened == ["https://example.com/2"], "store page opened (got %s)" % [opened])
 	await reset(w)
 
+	print("scale draws text bigger instead of stretching it")
+	check(is_equal_approx(RecoVibesWidget.auto_scale(480, 1.0), 3.0), "auto scale: 480 dpi, 1:1 canvas")
+	check(RecoVibesWidget.auto_scale(96, 1.0) == 1.0 and RecoVibesWidget.auto_scale(0, 1.0) == 1.0, "auto scale never below 1")
+	w = make_widget()
+	w.slots = 1
+	w.render(sample(1))
+	await process_frame
+	var base_font: int = (w.find_child("Name", true, false) as Label).get_theme_font_size("font_size")
+	w.ui_scale = 2.5
+	w.render(sample(1))
+	await process_frame
+	var scaled: Label = w.find_child("Name", true, false)
+	check(scaled.get_theme_font_size("font_size") == roundi(base_font * 2.5), "font size scaled (%d -> %d)" % [base_font, scaled.get_theme_font_size("font_size")])
+	check(w.scale == Vector2.ONE, "node itself not scaled")
+	await reset(w)
+
 	print("paused, empty, fixed slots, theme")
 	w = make_widget()
 	var paused := sample(3)

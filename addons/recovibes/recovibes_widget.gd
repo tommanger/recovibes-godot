@@ -10,7 +10,7 @@ extends Control
 ## node enters the tree counts as a new screen view, like a page load.
 
 const WIDGET_VERSION := "godot-1"
-const PACKAGE_VERSION := "1.0.0"
+const PACKAGE_VERSION := "1.1.0"
 const MAX_SLOTS := 12
 const PADDING := 12.0
 const HEADING_HEIGHT := 20.0
@@ -33,6 +33,10 @@ enum ThemeMode { FROM_DASHBOARD, LIGHT, DARK }
 @export var card_height := 76.0
 @export var min_card_width := 200.0
 @export var spacing := 10.0
+## Size multiplier for everything (text, spacing, cards). 0 = Auto: sized in
+## real points for the device, whatever your base resolution. Don't scale the
+## node itself instead - text would be drawn small and stretched (blurry).
+@export_range(0.0, 6.0, 0.05) var ui_scale := 0.0
 ## Leave as is, unless you test against your own RecoVibes server.
 @export var api_base := "https://api.recovibes.com"
 
@@ -52,6 +56,8 @@ var _seen := {}
 var _cards: Array = []  # [{card: Dictionary, node: Control, visible_for: float}]
 var _content: Control
 var _rendered_size := Vector2.ZERO
+var _rendered_scale := 1.0
+var _k := 1.0  # the scale in use while rendering
 var _tick := 0.0
 var _last_click := -10.0
 var _focused := true
@@ -65,6 +71,23 @@ static func auto_slots(lay: int, width: float, height: float, heading: bool, car
 	else:
 		n = floori((width + gap) / (min_w + gap))
 	return clampi(n, 1, MAX_SLOTS)
+
+
+## Multiplier so one design unit is one point (1/160 inch) on screen: screen
+## pixels per point over screen pixels per canvas unit. At least 1, at most 6.
+static func auto_scale(dpi: float, pixels_per_unit: float) -> float:
+	if dpi <= 0.0 or pixels_per_unit <= 0.0:
+		return 1.0
+	return clampf(dpi / 160.0 / pixels_per_unit, 1.0, 6.0)
+
+
+## The multiplier in use: ui_scale when set, else auto from the screen.
+func effective_scale() -> float:
+	if ui_scale > 0.0:
+		return ui_scale
+	if not is_inside_tree() or DisplayServer.get_name() == "headless":
+		return 1.0
+	return auto_scale(DisplayServer.screen_get_dpi(), get_viewport().get_screen_transform().get_scale().x)
 
 
 static func visible_fraction(item: Rect2, view: Rect2) -> float:
@@ -151,6 +174,8 @@ func render(response: Dictionary) -> void:
 	_cards.clear()
 	_shown = 0
 	_rendered_size = size
+	_k = effective_scale()
+	_rendered_scale = _k
 
 	var recs: Array = response.get("recommendations", []) if response.get("recommendations") is Array else []
 	if response.is_empty() or response.get("paused", false) or recs.is_empty():
@@ -164,14 +189,14 @@ func render(response: Dictionary) -> void:
 	var pal := _palette(dark)
 	var heading: bool = not design.get("hideHeading", false)
 
-	var room := size - Vector2(PADDING * 2, PADDING * 2)
-	var fit := slots if slots > 0 else auto_slots(layout, room.x, room.y, heading, card_height, min_card_width, spacing, HEADING_HEIGHT)
+	var room := size - Vector2(PADDING * 2, PADDING * 2) * _k
+	var fit := slots if slots > 0 else auto_slots(layout, room.x, room.y, heading, card_height * _k, min_card_width * _k, spacing * _k, HEADING_HEIGHT * _k)
 	_shown = mini(fit, recs.size())
 
 	_content = Panel.new()
 	_content.name = "RecoVibes"
 	_content.mouse_filter = Control.MOUSE_FILTER_PASS
-	_content.add_theme_stylebox_override("panel", _box(pal.panel, 16))
+	_content.add_theme_stylebox_override("panel", _box(pal.panel, _px(16)))
 	add_child(_content)
 	_content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
@@ -181,13 +206,13 @@ func render(response: Dictionary) -> void:
 
 	var list: BoxContainer = VBoxContainer.new() if layout == Layout.VERTICAL else HBoxContainer.new()
 	list.name = "Cards"
-	list.add_theme_constant_override("separation", int(spacing))
+	list.add_theme_constant_override("separation", _px(spacing))
 	_content.add_child(list)
 	list.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	list.offset_left = PADDING
-	list.offset_right = -PADDING
-	list.offset_bottom = -PADDING
-	list.offset_top = PADDING + (HEADING_HEIGHT + spacing if heading else 0.0)
+	list.offset_left = PADDING * _k
+	list.offset_right = -PADDING * _k
+	list.offset_bottom = -PADDING * _k
+	list.offset_top = (PADDING + (HEADING_HEIGHT + spacing if heading else 0.0)) * _k
 
 	for i in _shown:
 		_cards.append(_build_card(list, recs[i], i, pal, accent))
@@ -199,10 +224,10 @@ func _build_heading(text: String, pal: Dictionary) -> void:
 	row.name = "Heading"
 	_content.add_child(row)
 	row.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	row.offset_left = PADDING
-	row.offset_right = -PADDING
-	row.offset_top = PADDING
-	row.offset_bottom = PADDING + HEADING_HEIGHT
+	row.offset_left = PADDING * _k
+	row.offset_right = -PADDING * _k
+	row.offset_top = PADDING * _k
+	row.offset_bottom = (PADDING + HEADING_HEIGHT) * _k
 	var title := _label(text.to_upper(), 13, pal.muted, true)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(title)
@@ -210,7 +235,7 @@ func _build_heading(text: String, pal: Dictionary) -> void:
 	by.name = "ByRecoVibes"
 	by.text = "by RecoVibes"
 	by.underline = LinkButton.UNDERLINE_MODE_ON_HOVER
-	by.add_theme_font_size_override("font_size", 12)
+	by.add_theme_font_size_override("font_size", _px(12))
 	by.add_theme_color_override("font_color", pal.muted)
 	if font:
 		by.add_theme_font_override("font", font)
@@ -224,11 +249,11 @@ func _build_card(list: BoxContainer, rec: Dictionary, index: int, pal: Dictionar
 	card.focus_mode = Control.FOCUS_NONE
 	card.clip_contents = true
 	for state in ["normal", "focus", "disabled"]:
-		card.add_theme_stylebox_override(state, _box(pal.card, 12))
-	card.add_theme_stylebox_override("hover", _box(pal.card.lerp(pal.fg, 0.06), 12))
-	card.add_theme_stylebox_override("pressed", _box(pal.card.lerp(pal.fg, 0.12), 12))
+		card.add_theme_stylebox_override(state, _box(pal.card, _px(12)))
+	card.add_theme_stylebox_override("hover", _box(pal.card.lerp(pal.fg, 0.06), _px(12)))
+	card.add_theme_stylebox_override("pressed", _box(pal.card.lerp(pal.fg, 0.12), _px(12)))
 	if layout == Layout.VERTICAL:
-		card.custom_minimum_size.y = card_height
+		card.custom_minimum_size.y = card_height * _k
 	else:
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		card.size_flags_stretch_ratio = 1.0
@@ -237,21 +262,21 @@ func _build_card(list: BoxContainer, rec: Dictionary, index: int, pal: Dictionar
 
 	var row := HBoxContainer.new()
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_theme_constant_override("separation", 12)
+	row.add_theme_constant_override("separation", _px(12))
 	card.add_child(row)
 	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	row.offset_left = 12
-	row.offset_right = -12
-	row.offset_top = 8
-	row.offset_bottom = -8
+	row.offset_left = 12 * _k
+	row.offset_right = -12 * _k
+	row.offset_top = 8 * _k
+	row.offset_bottom = -8 * _k
 
 	# Avatar: the name's first letter on an accent-hued circle.
 	var avatar := Panel.new()
 	avatar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	avatar.custom_minimum_size = Vector2(44, 44)
+	avatar.custom_minimum_size = Vector2(44, 44) * _k
 	avatar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var hue := fposmod(accent.h + index * 47.0 / 360.0, 1.0)
-	avatar.add_theme_stylebox_override("panel", _box(Color.from_hsv(hue, maxf(accent.s, 0.45), maxf(accent.v, 0.75)), 22))
+	avatar.add_theme_stylebox_override("panel", _box(Color.from_hsv(hue, maxf(accent.s, 0.45), maxf(accent.v, 0.75)), _px(22)))
 	var name_text := str(rec.get("name", "")) if str(rec.get("name", "")) != "" else str(rec.get("host", ""))
 	var initial := _label(name_text.substr(0, 1).to_upper() if name_text != "" else "?", 20, Color.WHITE, true)
 	initial.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -264,7 +289,7 @@ func _build_card(list: BoxContainer, rec: Dictionary, index: int, pal: Dictionar
 	text.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	text.alignment = BoxContainer.ALIGNMENT_CENTER
-	text.add_theme_constant_override("separation", 2)
+	text.add_theme_constant_override("separation", _px(2))
 	row.add_child(text)
 	var title := _label(name_text, 16, pal.fg, true)
 	title.name = "Name"
@@ -338,8 +363,8 @@ func _screen_rect(c: Control) -> Rect2:
 
 
 func _on_resized() -> void:
-	# Re-fit when the rectangle changes size (rotation, resizing UI).
-	if not _data.is_empty() and is_instance_valid(_content) and (size - _rendered_size).length_squared() > 4.0:
+	# Re-fit when the rectangle or the scale changes (rotation, resizing UI).
+	if not _data.is_empty() and is_instance_valid(_content) and ((size - _rendered_size).length_squared() > 4.0 or absf(effective_scale() - _rendered_scale) > 0.05):
 		render(_data)
 
 
@@ -423,6 +448,10 @@ func _api(path: String) -> String:
 
 # ---- UI helpers ----
 
+func _px(points: float) -> int:
+	return maxi(1, roundi(points * _k))
+
+
 func _palette(dark: bool) -> Dictionary:
 	if dark:
 		return {"panel": Color("#121215"), "card": Color("#1e1e23"), "fg": Color("#f2f2f4"), "muted": Color("#9a9aa6")}
@@ -441,7 +470,7 @@ func _label(text: String, size_px: int, color: Color, bold: bool) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	l.add_theme_font_size_override("font_size", size_px)
+	l.add_theme_font_size_override("font_size", _px(size_px))  # drawn at its real size: sharp
 	l.add_theme_color_override("font_color", color)
 	var base: Font = font if font else ThemeDB.fallback_font
 	if bold:
