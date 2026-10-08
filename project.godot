@@ -1,0 +1,17 @@
+; Demo / test project for the RecoVibes addon. The addon itself is
+; addons/recovibes - that folder is all a game needs.
+config_version=5
+
+[application]
+
+config/name="RecoVibes Godot"
+config/features=PackedStringArray("4.2")
+
+[display]
+
+window/size/viewport_width=1080
+window/size/viewport_height=1920
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/recovibes/plugin.cfg")
