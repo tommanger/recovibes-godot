@@ -22,10 +22,13 @@ From code:
 ```gdscript
 var reco := RecoVibesWidget.new()
 reco.data_id = "rv_xxxxxxxx"
-reco.layout = RecoVibesWidget.Layout.HORIZONTAL
 $Panel.add_child(reco)
 reco.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 ```
+
+## Design
+
+The widget draws the design you pick in the dashboard (template, corners, theme, accent, heading, number of cards). Change it there and every copy of your game shows the new look on its next load - no new build, no addon update.
 
 ## How it counts
 
@@ -38,11 +41,11 @@ reco.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 | Property | What it does |
 | --- | --- |
-| slots | 0 = as many as fit; otherwise a fixed number (up to 12) |
-| layout | VERTICAL list or HORIZONTAL row |
+| slots | 0 = the dashboard's setting (or as many as fit); otherwise a fixed number (up to 12) |
+| layout | FROM_DASHBOARD (the template's layout), or force a VERTICAL list / HORIZONTAL row |
 | theme_mode | From your dashboard design, or LIGHT / DARK |
 | font | Your game's font (default: Godot's) |
-| card_height / min_card_width / spacing | Card sizing |
+| mono_font | A monospaced font for the Terminal template (default: the system's) |
 | ui_scale | 0 = Auto: sized in real points for the device, whatever your base resolution. Or set a multiplier yourself. Don't scale the node itself - text would be stretched and blurry. |
 
 ## Tests

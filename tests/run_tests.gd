@@ -26,6 +26,15 @@ func sample(n: int, theme := "") -> Dictionary:
 	return {"receipt": "test-receipt", "recommendations": recs, "widget": {"theme": theme, "lang": "en"}}
 
 
+func styled(n: int, tune: Dictionary) -> Dictionary:
+	var r := sample(n)
+	r.recommendations[1].name = "A much longer game name"
+	var st := RecoVibesWidget.classic_style({})
+	st.merge(tune, true)
+	r["native"] = st
+	return r
+
+
 func make_widget(w := 600.0, h := 400.0) -> RecoVibesWidget:
 	var widget := RecoVibesWidget.new()
 	widget.api_base = "http://127.0.0.1:9"  # nothing listens: reports go nowhere
@@ -66,7 +75,7 @@ func _run() -> void:
 	await process_frame
 	w.render(sample(8))
 	await process_frame
-	check(counts[0] == 4, "four cards fit in 600x400 (got %d)" % counts[0])
+	check(counts[0] == 8, "3 columns x 4 rows fit in 600x400: all 8 shown (got %d)" % counts[0])
 	var names := []
 	for n in w.find_children("Name", "Label", true, false):
 		names.append(n.text)
@@ -136,6 +145,38 @@ func _run() -> void:
 	check(w.find_children("Card*", "Button", true, false).size() == 2, "fixed slots")
 	var panel: Panel = w.find_child("RecoVibes", true, false)
 	check((panel.get_theme_stylebox("panel") as StyleBoxFlat).bg_color.r > 0.5, "light theme from the dashboard")
+	await reset(w)
+
+	print("draws the dashboard's templates")
+	w = make_widget()
+	w.render(styled(8, {"slots": 3}))
+	var cs := w.find_children("Card*", "Button", true, false)
+	check(cs.size() == 3, "the dashboard's slot count")
+	check(is_equal_approx(cs[0].position.y, cs[2].position.y), "three 180-wide columns in 600")
+
+	w.render(styled(6, {"template": "pills", "layout": "chips", "maxColumns": 0, "itemHeight": 36, "radius": 999, "gap": 8, "rowGap": 8,
+		"avatar": true, "avatarSize": 24, "avatarRadius": 12, "nameSize": 13, "nameBold": false, "descShow": false}))
+	cs = w.find_children("Card*", "Button", true, false)
+	check(w.find_children("Description", "Label", true, false).is_empty(), "pills: no description")
+	check(cs[1].size.x > cs[0].size.x + 40, "pills: as wide as the name (%d vs %d)" % [cs[1].size.x, cs[0].size.x])
+	check(is_equal_approx(cs[0].position.y, cs[1].position.y), "pills: share a line")
+	check(is_equal_approx(cs[0].size.y, 36.0), "pills: 36 high")
+	check(w.find_children("Avatar", "Panel", true, false).size() == cs.size(), "pills: an avatar each")
+
+	w.render(styled(4, {"template": "terminal", "maxColumns": 1, "minWidth": 0, "itemHeight": 24, "gap": 0, "rowGap": 0, "itemPadX": 0,
+		"cardFill": false, "border": false, "nameAccent": true, "nameBold": false, "descInline": true, "descLines": 1,
+		"prefix": "→", "mono": true, "headingBar": true, "headingUppercase": false}))
+	cs = w.find_children("Card*", "Button", true, false)
+	check(w.find_child("HeadingBar", true, false) != null, "terminal: title bar")
+	check(cs.size() > 1 and cs.all(func(c): return is_equal_approx(c.position.x, cs[0].position.x)), "terminal: one column")
+	check(cs.all(func(c): return c.find_child("Prefix", false, false) != null), "terminal: prefixes")
+	check((cs[0].get_theme_stylebox("normal") as StyleBoxFlat).bg_color.a == 0.0, "terminal: no card background")
+
+	w.render(styled(4, {"template": "minimal", "maxColumns": 3, "minWidth": 260, "itemHeight": 41, "gap": 28, "rowGap": 0, "itemPadX": 2,
+		"cardFill": false, "border": false, "divider": true, "descInline": true, "descLines": 1, "suffix": "↗"}))
+	cs = w.find_children("Card*", "Button", true, false)
+	check(cs.all(func(c): return c.find_child("Suffix", false, false) != null and (c.get_theme_stylebox("normal") as StyleBoxFlat).border_width_bottom > 0), "minimal: dividers and arrows")
+	check(is_equal_approx(cs[0].position.y, cs[1].position.y), "minimal: two columns in 600")
 	await reset(w)
 
 	var api := OS.get_environment("RECOVIBES_TEST_API")
