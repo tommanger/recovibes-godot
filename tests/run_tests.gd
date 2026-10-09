@@ -147,6 +147,13 @@ func _run() -> void:
 	check((panel.get_theme_stylebox("panel") as StyleBoxFlat).bg_color.r > 0.5, "light theme from the dashboard")
 	await reset(w)
 
+	print("the panel ends under the last row")
+	w = make_widget()
+	w.render(styled(2, {"slots": 1}))
+	var pnl: Panel = w.find_child("RecoVibes", true, false)
+	check(pnl.size.y < w.size.y - 50, "no empty panel below the cards (%d of %d)" % [pnl.size.y, w.size.y])
+	await reset(w)
+
 	print("draws the dashboard's templates")
 	w = make_widget()
 	w.render(styled(8, {"slots": 3}))

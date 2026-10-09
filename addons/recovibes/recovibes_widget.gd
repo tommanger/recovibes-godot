@@ -10,7 +10,7 @@ extends Control
 ## node enters the tree counts as a new screen view, like a page load.
 
 const WIDGET_VERSION := "godot-1"
-const PACKAGE_VERSION := "1.2.0"
+const PACKAGE_VERSION := "1.2.1"
 const MAX_SLOTS := 12
 const ATTRIBUTION_URL := "https://recovibes.com/?utm_source=godot&utm_medium=attribution"
 const DEFAULT_ACCENT := Color("#7e7eff")
@@ -231,6 +231,14 @@ func render(response: Dictionary) -> void:
 	else:
 		_layout_grid(recs, limit, area, pal)
 	_shown = _cards.size()
+	# The panel ends under the last row, like on the web, instead of filling
+	# a taller rectangle with empty space.
+	var used := 0.0
+	for c in _cards:
+		used = maxf(used, c.node.position.y + c.node.size.y)
+	if used > 0.0 and used + pad < size.y:
+		_content.anchor_bottom = 0.0
+		_content.offset_bottom = used + pad
 	rendered.emit(_shown)
 
 
